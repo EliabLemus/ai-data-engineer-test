@@ -1,116 +1,217 @@
 {
-  "name": "📥 Ingestar CSV Diario via API (Limpio)",
+  "name": "Ads Ingestion + Metrics",
   "nodes": [
     {
-      "parameters": {
-        "cronExpression": "0 14 * * *"
-      },
       "id": "1",
-      "name": "CRON_8AM_GT",
+      "name": "Cron - Cada 60 min",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
-      "position": [-740, 180]
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "triggerTimes": [
+          {
+            "mode": "everyX",
+            "value": 60,
+            "unit": "minutes"
+          }
+        ]
+      }
     },
     {
-      "parameters": {
-        "url": "https://drive.google.com/uc?export=download&id=1RXj_3txgmyX2Wyt9ZwM7l4axfi5A6EC-",
-        "responseFormat": "file",
-        "options": {}
-      },
       "id": "2",
       "name": "Descargar CSV",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 2,
-      "position": [-500, 180]
-    },
-    {
-      "parameters": {
-        "functionCode": "const csv = Buffer.from($binary.data.data, 'base64').toString();\nconst lines = csv.split('\\n').filter(l => l.trim() !== '');\nconst headers = lines[0].split(',');\n\nconst rows = lines.slice(1).map(line => {\n  const cols = line.split(',');\n  const obj = {};\n  headers.forEach((h, i) => {\n    obj[h.trim()] = cols[i]?.trim();\n  });\n  return obj;\n});\n\nreturn rows.map(r => ({ json: r }));"
-      },
-      "id": "3",
-      "name": "Code: Parse CSV (sin nodo extra)",
-      "type": "n8n-nodes-base.code",
       "typeVersion": 1,
-      "position": [-280, 180]
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "url": "https://drive.google.com/uc?export=download&id=1RXj_3txgmyX2Wyt9ZwM7l4axfi5A6EC-",
+        "responseFormat": "file",
+        "download": true
+      }
     },
     {
+      "id": "3",
+      "name": "Parse CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
       "parameters": {
-        "functionCode": "const load_date = new Date().toISOString().slice(0,10);\nconst source_file_name = 'ads_spend.csv';\n\nreturn items.map(item => {\n  return {\n    json: {\n      ...item.json,\n      load_date,\n      source_file_name\n    }\n  };\n});"
-      },
+        "operation": "fromBinary",
+        "binaryPropertyName": "data"
+      }
+    },
+    {
       "id": "4",
-      "name": "Agregar Metadata",
+      "name": "A\u00f1adir load_date",
       "type": "n8n-nodes-base.function",
       "typeVersion": 1,
-      "position": [-40, 180]
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "functionCode": "return items.map(item => {\n  item.json.load_date = new Date().toISOString().slice(0, 10);\n  item.json.source_file_name = 'ads_spend.csv';\n  return item;\n});"
+      }
     },
     {
+      "id": "5",
+      "name": "Lotes de 500",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        960,
+        0
+      ],
       "parameters": {
+        "functionCode": "const size = 500;\nconst batches = [];\nfor (let i = 0; i < items.length; i += size) {\n  const chunk = items.slice(i, i + size).map(e => e.json);\n  batches.push({ json: { batch: chunk } });\n}\nreturn batches;"
+      }
+    },
+    {
+      "id": "6",
+      "name": "POST /ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "url": "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.app/ingest",
         "method": "POST",
-        "url": "https://n8n-sqliteapi.zfrap0.easypanel.host/ingest",
         "responseFormat": "json",
         "jsonParameters": true,
-        "options": {
-          "timeout": 60000
-        },
-        "bodyParametersJson": "={{$items().map(i => i.json)}}"
-      },
-      "id": "5",
-      "name": "Enviar a API (POST /ingest)",
+        "options": {},
+        "bodyParametersJson": "={{$json[\"batch\"]}}",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ]
+      }
+    },
+    {
+      "id": "7",
+      "name": "Webhook - /metrics",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "path": "metrics",
+        "httpMethod": "GET",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "id": "8",
+      "name": "Proxy a API /metrics",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 2,
-      "position": [200, 180]
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "url": "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.app/metrics",
+        "responseFormat": "json",
+        "jsonParameters": false
+      }
+    },
+    {
+      "id": "9",
+      "name": "Responder JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "responseData": "={{$json}}"
+      }
     }
   ],
   "connections": {
-    "CRON_8AM_GT": {
-      "main": [
-        [
-          {
-            "node": "Descargar CSV",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Descargar CSV": {
-      "main": [
-        [
-          {
-            "node": "Code: Parse CSV (sin nodo extra)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Code: Parse CSV (sin nodo extra)": {
-      "main": [
-        [
-          {
-            "node": "Agregar Metadata",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Agregar Metadata": {
-      "main": [
-        [
-          {
-            "node": "Enviar a API (POST /ingest)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "1": [
+      {
+        "node": "2",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "2": [
+      {
+        "node": "3",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "3": [
+      {
+        "node": "4",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "4": [
+      {
+        "node": "5",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "5": [
+      {
+        "node": "6",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "7": [
+      {
+        "node": "8",
+        "type": "main",
+        "index": 0
+      }
+    ],
+    "8": [
+      {
+        "node": "9",
+        "type": "main",
+        "index": 0
+      }
+    ]
   },
   "settings": {
-    "executionOrder": "v1",
     "timezone": "America/Guatemala",
-    "saveExecutionProgress": true
+    "saveExecutionProgress": true,
+    "errorExecutionBehavior": "continueRegular",
+    "executionOrder": "v1"
   },
-  "tags": []
+  "tags": [
+    {
+      "name": "sqlite"
+    },
+    {
+      "name": "bulk-ingest"
+    },
+    {
+      "name": "metrics"
+    }
+  ],
+  "version": 1,
+  "active": true,
+  "id": "1756405544.172081"
 }

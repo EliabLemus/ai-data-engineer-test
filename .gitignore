@@ -1,0 +1,35 @@
+# System files
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+
+# Environments
+.env
+.venv/
+venv/
+env/
+
+# FastAPI SQLite DB
+data/*.db
+
+# n8n execution data (if exported)
+*.n8n.json
+
+# VSCode / PyCharm
+.vscode/
+.idea/
+
+# OS backup files
+*.swp
+*~
+
+# Ignore exported workflow if temporary
+ads_ingest_metrics_workflow_FIXED.json
+
+# Do not ignore .gitignore itself (remove from ignore list)

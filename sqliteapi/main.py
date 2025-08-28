@@ -11,7 +11,7 @@ def init_db() -> str:
     con = sqlite3.connect(DB_PATH)
     con.executescript("""
     PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = NORMAL;
+    PRAGMA synchronous = MEMORY;
     CREATE TABLE IF NOT EXISTS ads_spend (
       date TEXT,
       platform TEXT,

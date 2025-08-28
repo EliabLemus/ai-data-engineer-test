@@ -5,7 +5,7 @@ IMAGE_NAME      ?= sqliteapi
 CONTEXT_DIR     ?= ./sqliteapi
 DOCKERFILE_PATH ?= $(CONTEXT_DIR)/Dockerfile
 
-TAGS            ?= latest 0.1.0
+TAGS            ?= latest 0.1.1
 
 # Puerto interno real del contenedor (uvicorn en main.py)
 INTERNAL_PORT   ?= 8500
@@ -62,3 +62,41 @@ logs:                             ## muestra logs del contenedor
 
 test:                             ## prueba endpoint /metrics
 	curl -s http://localhost:$(HOST_PORT)/health | jq .
+
+test-ingest:
+	@echo "➡️  Probando ingestión bulk a /ingest..."
+	@curl -s -X POST http://localhost:8000/ingest \
+		-H "Content-Type: application/json" \
+		-d "$$(cat <<EOF
+	[
+	{
+		"date": "2024-07-01",
+		"platform": "facebook",
+		"account": "cuenta1",
+		"campaign": "campaña1",
+		"country": "GT",
+		"device": "mobile",
+		"spend": 100,
+		"clicks": 120,
+		"impressions": 3000,
+		"conversions": 8,
+		"load_date": "2025-08-28",
+		"source_file_name": "ads_spend.csv"
+	},
+	{
+		"date": "2024-07-02",
+		"platform": "google",
+		"account": "cuenta2",
+		"campaign": "campaña2",
+		"country": "GT",
+		"device": "desktop",
+		"spend": 90,
+		"clicks": 100,
+		"impressions": 4000,
+		"conversions": 9,
+		"load_date": "2025-08-28",
+		"source_file_name": "ads_spend.csv"
+	}
+	]
+	EOF
+	)"
