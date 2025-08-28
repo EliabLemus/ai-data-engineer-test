@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  sqliteapi:
+    build:
+      context: ./sqliteapi
+      dockerfile: Dockerfile
+    image: docker.io/elemusbarrios/sqliteapi:latest
+    container_name: sqliteapi
+    ports:
+      - "8500:8500"
+    volumes:
+      - ./data:/data
+    environment:
+      - SQLITE_PATH=/data/ads.sqlite
+    restart: unless-stopped
+    
+    # Opcional: configuraciones de salud
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/metrics?compare=last30_prev30"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Opcional: añadir un servicio de base de datos o herramienta de monitoreo
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080

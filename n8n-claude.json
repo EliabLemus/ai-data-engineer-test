@@ -1,0 +1,277 @@
+{
+  "name": "Ads Spend Ingestion + Metrics (SQLite)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ManualTrigger1",
+      "name": "Manual Trigger (Ingest)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [ -1180, -120 ]
+    },
+    {
+      "parameters": {
+        "url": "https://drive.google.com/uc?export=download&id=1RXj_3txgmyX2Wyt9ZwM7l4axfi5A6EC-",
+        "responseFormat": "file",
+        "download": true,
+        "binaryPropertyName": "data"
+      },
+      "id": "HttpRequest1",
+      "name": "Download CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [ -980, -120 ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "binaryPropertyName": "data",
+        "options": {
+          "headersRow": true,
+          "readAsString": false,
+          "delimiter": ",",
+          "encoding": "utf8"
+        }
+      },
+      "id": "Spreadsheet1",
+      "name": "Parse CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 3,
+      "position": [ -780, -120 ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            { "name": "source_file_name", "value": "ads_spend.csv" }
+          ],
+          "dateTime": [
+            { "name": "load_date", "value": "={{$now}}" }
+          ]
+        }
+      },
+      "id": "SetMeta1",
+      "name": "Add Metadata",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [ -580, -120 ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const crypto = require('crypto');\nreturn items.map(item => {\n  const j = item.json;\n  // Normalize date (YYYY-MM-DD) just in case\n  if (j.date) j.date = String(j.date).slice(0,10);\n  // Cast numerics\n  const num = (v)=> (v === null || v === undefined || v === '' ? null : Number(v));\n  j.spend = num(j.spend);\n  j.clicks = num(j.clicks);\n  j.impressions = num(j.impressions);\n  j.conversions = num(j.conversions);\n  // Stable natural key hash\n  const key = `${j.date}|${j.platform}|${j.account}|${j.campaign}|${j.country}|${j.device}`;\n  j.id = crypto.createHash('md5').update(key).digest('hex');\n  return item;\n});"
+      },
+      "id": "FunctionId1",
+      "name": "Compute Row ID",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [ -380, -120 ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS ads_spend (\n  id TEXT PRIMARY KEY,\n  date TEXT,\n  platform TEXT,\n  account TEXT,\n  campaign TEXT,\n  country TEXT,\n  device TEXT,\n  spend REAL,\n  clicks INTEGER,\n  impressions INTEGER,\n  conversions INTEGER,\n  load_date TEXT,\n  source_file_name TEXT\n);\n"
+      },
+      "id": "SQLiteCreate1",
+      "name": "Create Table (SQLite)",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 2,
+      "position": [ -180, -120 ],
+      "credentials": {
+        "sqlite": {
+          "name": "ads_sqlite"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO ads_spend (\n  id, date, platform, account, campaign, country, device, spend, clicks, impressions, conversions, load_date, source_file_name\n) VALUES (\n  '{{$json.id}}',\n  '{{$json.date}}',\n  '{{$json.platform}}',\n  '{{$json.account}}',\n  '{{$json.campaign}}',\n  '{{$json.country}}',\n  '{{$json.device}}',\n  {{$json.spend}},\n  {{$json.clicks}},\n  {{$json.impressions}},\n  {{$json.conversions}},\n  '{{$json.load_date}}',\n  '{{$json.source_file_name}}'\n)\nON CONFLICT(id) DO UPDATE SET\n  date=excluded.date,\n  platform=excluded.platform,\n  account=excluded.account,\n  campaign=excluded.campaign,\n  country=excluded.country,\n  device=excluded.device,\n  spend=excluded.spend,\n  clicks=excluded.clicks,\n  impressions=excluded.impressions,\n  conversions=excluded.conversions,\n  load_date=excluded.load_date,\n  source_file_name=excluded.source_file_name;\n"
+      },
+      "id": "SQLiteUpsert1",
+      "name": "Upsert Rows (SQLite)",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 2,
+      "position": [ 20, -120 ],
+      "credentials": {
+        "sqlite": {
+          "name": "ads_sqlite"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "metrics",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "responseData": "allEntries"
+        }
+      },
+      "id": "WebhookMetrics1",
+      "name": "Webhook /metrics",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ -1180, 260 ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const q = $json.query || {};\n// We only need an end date for the L30 vs P30 compare.\n// If not provided, use today (local system date).\nlet end = q.end || q.until || null;\nif (!end) {\n  const d = new Date();\n  end = d.toISOString().slice(0,10);\n}\nreturn [{ json: { end } }];"
+      },
+      "id": "FunctionParams1",
+      "name": "Compute Params",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [ -960, 260 ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH params AS (\n  SELECT date('{{ $json.end }}') AS end_date\n),\nlast_30 AS (\n  SELECT\n    SUM(spend) AS spend,\n    SUM(conversions) AS conversions,\n    SUM(conversions) * 100.0 AS revenue\n  FROM ads_spend, params\n  WHERE date(date) BETWEEN date(params.end_date, '-29 days') AND params.end_date\n),\nprior_30 AS (\n  SELECT\n    SUM(spend) AS spend,\n    SUM(conversions) AS conversions,\n    SUM(conversions) * 100.0 AS revenue\n  FROM ads_spend, params\n  WHERE date(date) BETWEEN date(params.end_date, '-59 days') AND date(params.end_date, '-30 days')\n)\nSELECT\n  'last_30' AS period,\n  spend,\n  conversions,\n  revenue,\n  CASE WHEN conversions > 0 THEN spend / conversions ELSE NULL END AS CAC,\n  CASE WHEN spend > 0 THEN revenue / spend ELSE NULL END AS ROAS\nFROM last_30\nUNION ALL\nSELECT\n  'prior_30' AS period,\n  spend,\n  conversions,\n  revenue,\n  CASE WHEN conversions > 0 THEN spend / conversions ELSE NULL END AS CAC,\n  CASE WHEN spend > 0 THEN revenue / spend ELSE NULL END AS ROAS\nFROM prior_30;\n"
+      },
+      "id": "SQLiteQueryMetrics1",
+      "name": "Query Metrics (SQLite)",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 2,
+      "position": [ -720, 260 ],
+      "credentials": {
+        "sqlite": {
+          "name": "ads_sqlite"
+        }
+      }
+    },
+    {
+              "parameters": {
+        "functionCode": "if (items.length !== 2) {\n  return [{ json: { error: 'Not enough data in the selected windows (need 60 days total).' } }];\n}\nconst last = items.find(i => i.json.period === 'last_30').json;\nconst prior = items.find(i => i.json.period === 'prior_30').json;\nfunction pct(now, prev){\n  if (prev === 0 || prev === null || prev === undefined) return null;\n  if (now === null || now === undefined) return null;\n  return (now - prev) / prev;\n}\nconst out = {\n  window: {\n    last_30: { spend: last.spend || 0, conversions: last.conversions || 0, revenue: last.revenue || 0, CAC: last.CAC ?? null, ROAS: last.ROAS ?? null },\n    prior_30: { spend: prior.spend || 0, conversions: prior.conversions || 0, revenue: prior.revenue || 0, CAC: prior.CAC ?? null, ROAS: prior.ROAS ?? null }\n  },\n  delta: {\n    spend_pct: pct(last.spend, prior.spend),\n    conversions_pct: pct(last.conversions, prior.conversions),\n    revenue_pct: pct(last.revenue, prior.revenue),\n    CAC_pct: pct(last.CAC, prior.CAC),\n    ROAS_pct: pct(last.ROAS, prior.ROAS)\n  }\n};\nreturn [{ json: out }];"
+      },
+      "id": "FunctionDelta1",
+      "name": "Compute Deltas",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [ -520, 260 ]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{$json}}",
+        "responseCode": 200
+      },
+      "id": "RespondMetrics1",
+      "name": "Respond /metrics",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [ -320, 260 ]
+    },
+    {
+      "parameters": {
+        "path": "ask",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "responseData": "allEntries"
+        }
+      },
+      "id": "WebhookAsk1",
+      "name": "Webhook /ask (Bonus)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ -1180, 540 ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const q = ($json.query && ($json.query.q || $json.query.question || '')) || '';\nconst text = String(q).toLowerCase();\n// Very simple router: if user asks to compare CAC & ROAS last 30 vs prior 30, forward to metrics\nconst match = /compare\\s+(cac|cac and roas|roas).*last\\s*30.*prior\\s*30/.test(text) || /last\\s*30.*prior\\s*30.*(cac|roas)/.test(text);\nif (match) {\n  // Reuse same structure the /metrics expects (we only need end)\n  let end = ($json.query && ($json.query.end || $json.query.until)) || null;\n  if (!end) end = new Date().toISOString().slice(0,10);\n  return [{ json: { end } }];\n}\nreturn [{ json: { message: \"Unrecognized question. Try: 'Compare CAC and ROAS for last 30 days vs prior 30 days.'\", hint: \"/metrics?end=YYYY-MM-DD\" } }];"
+      },
+      "id": "FunctionAskRouter1",
+      "name": "Ask: route to metrics",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [ -960, 540 ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH params AS (\n  SELECT date('{{ $json.end }}') AS end_date\n),\nlast_30 AS (\n  SELECT\n    SUM(spend) AS spend,\n    SUM(conversions) AS conversions,\n    SUM(conversions) * 100.0 AS revenue\n  FROM ads_spend, params\n  WHERE date(date) BETWEEN date(params.end_date, '-29 days') AND params.end_date\n),\nprior_30 AS (\n  SELECT\n    SUM(spend) AS spend,\n    SUM(conversions) AS conversions,\n    SUM(conversions) * 100.0 AS revenue\n  FROM ads_spend, params\n  WHERE date(date) BETWEEN date(params.end_date, '-59 days') AND date(params.end_date, '-30 days')\n)\nSELECT\n  'last_30' AS period,\n  spend,\n  conversions,\n  revenue,\n  CASE WHEN conversions > 0 THEN spend / conversions ELSE NULL END AS CAC,\n  CASE WHEN spend > 0 THEN revenue / spend ELSE NULL END AS ROAS\nFROM last_30\nUNION ALL\nSELECT\n  'prior_30' AS period,\n  spend,\n  conversions,\n  revenue,\n  CASE WHEN conversions > 0 THEN spend / conversions ELSE NULL END AS CAC,\n  CASE WHEN spend > 0 THEN revenue / spend ELSE NULL END AS ROAS\nFROM prior_30;\n"
+      },
+      "id": "SQLiteQueryAsk1",
+      "name": "Query Metrics (from /ask)",
+      "type": "n8n-nodes-base.sqlite",
+      "typeVersion": 2,
+      "position": [ -720, 540 ],
+      "credentials": {
+        "sqlite": {
+          "name": "ads_sqlite"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "if (items.length !== 2) {\n  return [{ json: { error: 'Not enough data in the selected windows (need 60 days total).' } }];\n}\nconst last = items.find(i => i.json.period === 'last_30').json;\nconst prior = items.find(i => i.json.period === 'prior_30').json;\nfunction pct(now, prev){\n  if (prev === 0 || prev === null || prev === undefined) return null;\n  if (now === null || now === undefined) return null;\n  return (now - prev) / prev;\n}\nconst out = {\n  answer: \"Comparison for last 30 days vs prior 30 days\",\n  window: {\n    last_30: { CAC: last.CAC ?? null, ROAS: last.ROAS ?? null, spend: last.spend || 0, conversions: last.conversions || 0 },\n    prior_30: { CAC: prior.CAC ?? null, ROAS: prior.ROAS ?? null, spend: prior.spend || 0, conversions: prior.conversions || 0 }\n  },\n  delta_pct: {\n    CAC: pct(last.CAC, prior.CAC),\n    ROAS: pct(last.ROAS, prior.ROAS)\n  }\n};\nreturn [{ json: out }];"
+      },
+      "id": "FunctionAskDelta1",
+      "name": "Ask: Compute Deltas",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [ -520, 540 ]
+    },
+    {
+      "parameters": {
+        "responseBody": "={{$json}}",
+        "responseCode": 200
+      },
+      "id": "RespondAsk1",
+      "name": "Respond /ask",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [ -320, 540 ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger (Ingest)": {
+      "main": [ [ { "node": "Download CSV", "type": "main", "index": 0 } ] ]
+    },
+    "Download CSV": {
+      "main": [ [ { "node": "Parse CSV", "type": "main", "index": 0 } ] ]
+    },
+    "Parse CSV": {
+      "main": [ [ { "node": "Add Metadata", "type": "main", "index": 0 } ] ]
+    },
+    "Add Metadata": {
+      "main": [ [ { "node": "Compute Row ID", "type": "main", "index": 0 } ] ]
+    },
+    "Compute Row ID": {
+      "main": [ [ { "node": "Create Table (SQLite)", "type": "main", "index": 0 } ] ]
+    },
+    "Create Table (SQLite)": {
+      "main": [ [ { "node": "Upsert Rows (SQLite)", "type": "main", "index": 0 } ] ]
+    },
+    "Webhook /metrics": {
+      "main": [ [ { "node": "Compute Params", "type": "main", "index": 0 } ] ]
+    },
+    "Compute Params": {
+      "main": [ [ { "node": "Query Metrics (SQLite)", "type": "main", "index": 0 } ] ]
+    },
+    "Query Metrics (SQLite)": {
+      "main": [ [ { "node": "Compute Deltas", "type": "main", "index": 0 } ] ]
+    },
+    "Compute Deltas": {
+      "main": [ [ { "node": "Respond /metrics", "type": "main", "index": 0 } ] ]
+    },
+    "Webhook /ask (Bonus)": {
+      "main": [ [ { "node": "Ask: route to metrics", "type": "main", "index": 0 } ] ]
+    },
+    "Ask: route to metrics": {
+      "main": [ [ { "node": "Query Metrics (from /ask)", "type": "main", "index": 0 } ] ]
+    },
+    "Query Metrics (from /ask)": {
+      "main": [ [ { "node": "Ask: Compute Deltas", "type": "main", "index": 0 } ] ]
+    },
+    "Ask: Compute Deltas": {
+      "main": [ [ { "node": "Respond /ask", "type": "main", "index": 0 } ] ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null
+}

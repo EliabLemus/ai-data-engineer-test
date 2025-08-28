@@ -1,0 +1,116 @@
+{
+  "name": "📥 Ingestar CSV Diario via API (Limpio)",
+  "nodes": [
+    {
+      "parameters": {
+        "cronExpression": "0 14 * * *"
+      },
+      "id": "1",
+      "name": "CRON_8AM_GT",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [-740, 180]
+    },
+    {
+      "parameters": {
+        "url": "https://drive.google.com/uc?export=download&id=1RXj_3txgmyX2Wyt9ZwM7l4axfi5A6EC-",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "id": "2",
+      "name": "Descargar CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [-500, 180]
+    },
+    {
+      "parameters": {
+        "functionCode": "const csv = Buffer.from($binary.data.data, 'base64').toString();\nconst lines = csv.split('\\n').filter(l => l.trim() !== '');\nconst headers = lines[0].split(',');\n\nconst rows = lines.slice(1).map(line => {\n  const cols = line.split(',');\n  const obj = {};\n  headers.forEach((h, i) => {\n    obj[h.trim()] = cols[i]?.trim();\n  });\n  return obj;\n});\n\nreturn rows.map(r => ({ json: r }));"
+      },
+      "id": "3",
+      "name": "Code: Parse CSV (sin nodo extra)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [-280, 180]
+    },
+    {
+      "parameters": {
+        "functionCode": "const load_date = new Date().toISOString().slice(0,10);\nconst source_file_name = 'ads_spend.csv';\n\nreturn items.map(item => {\n  return {\n    json: {\n      ...item.json,\n      load_date,\n      source_file_name\n    }\n  };\n});"
+      },
+      "id": "4",
+      "name": "Agregar Metadata",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [-40, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-sqliteapi.zfrap0.easypanel.host/ingest",
+        "responseFormat": "json",
+        "jsonParameters": true,
+        "options": {
+          "timeout": 60000
+        },
+        "bodyParametersJson": "={{$items().map(i => i.json)}}"
+      },
+      "id": "5",
+      "name": "Enviar a API (POST /ingest)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [200, 180]
+    }
+  ],
+  "connections": {
+    "CRON_8AM_GT": {
+      "main": [
+        [
+          {
+            "node": "Descargar CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar CSV": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse CSV (sin nodo extra)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse CSV (sin nodo extra)": {
+      "main": [
+        [
+          {
+            "node": "Agregar Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agregar Metadata": {
+      "main": [
+        [
+          {
+            "node": "Enviar a API (POST /ingest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Guatemala",
+    "saveExecutionProgress": true
+  },
+  "tags": []
+}
