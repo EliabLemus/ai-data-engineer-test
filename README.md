@@ -167,27 +167,22 @@ Video should explain:
 ---
 ## 🖼️ Visual Charts
 
-Here are key visual outputs generated during the challenge:
+Here are some screenshots from the NLP Chat I built during the challenge. 
+### 📈 NLP Chat screenshot  
 
-### 📈 CAC & ROAS Over Time
+![Chat 1](./ShadowLightChat1.png)
 
-![Chart 1](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart1.png)
 
-### 📊 Spend vs Conversions
+### 📊 Last 30 days summary 
 
-![Chart 2](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart2.png)
+![Chat 2](./ShadowLightChat2.png)
+### 📉 Recommendations
 
-### 📉 CAC Comparison (Last 30 vs Previous 30 Days)
+![Chat 3](./ShadowLightChat3.png)
+### 📈 Data Analysis Results
 
-![Chart 3](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart3.png)
+![Chat 4](./ShadowLightChat4.png)
 
-### 📈 ROAS Comparison (Last 30 vs Previous 30 Days)
-
-![Chart 4](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart4.png)
-
-### 📊 Summary Dashboard Snapshot
-
-![Chart 5](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart5.png)
 
 ---
 
