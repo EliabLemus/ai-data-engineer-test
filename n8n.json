@@ -1,217 +1,203 @@
 {
-  "name": "Ads Ingestion + Metrics",
+  "name": "Shadowlight.video",
   "nodes": [
     {
-      "id": "1",
-      "name": "Cron - Cada 60 min",
+      "parameters": {},
+      "id": "de65d0d8-13c9-4f10-8467-a6ed5b8606e9",
+      "name": "CRON_8AM_GT",
       "type": "n8n-nodes-base.cron",
       "typeVersion": 1,
       "position": [
-        0,
-        0
-      ],
-      "parameters": {
-        "triggerTimes": [
-          {
-            "mode": "everyX",
-            "value": 60,
-            "unit": "minutes"
-          }
-        ]
-      }
+        448,
+        64
+      ]
     },
     {
-      "id": "2",
-      "name": "Descargar CSV",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [
-        240,
-        0
-      ],
       "parameters": {
         "url": "https://drive.google.com/uc?export=download&id=1RXj_3txgmyX2Wyt9ZwM7l4axfi5A6EC-",
         "responseFormat": "file",
-        "download": true
-      }
-    },
-    {
-      "id": "3",
-      "name": "Parse CSV",
-      "type": "n8n-nodes-base.spreadsheetFile",
-      "typeVersion": 1,
-      "position": [
-        480,
-        0
-      ],
-      "parameters": {
-        "operation": "fromBinary",
-        "binaryPropertyName": "data"
-      }
-    },
-    {
-      "id": "4",
-      "name": "A\u00f1adir load_date",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [
-        720,
-        0
-      ],
-      "parameters": {
-        "functionCode": "return items.map(item => {\n  item.json.load_date = new Date().toISOString().slice(0, 10);\n  item.json.source_file_name = 'ads_spend.csv';\n  return item;\n});"
-      }
-    },
-    {
-      "id": "5",
-      "name": "Lotes de 500",
-      "type": "n8n-nodes-base.function",
-      "typeVersion": 1,
-      "position": [
-        960,
-        0
-      ],
-      "parameters": {
-        "functionCode": "const size = 500;\nconst batches = [];\nfor (let i = 0; i < items.length; i += size) {\n  const chunk = items.slice(i, i + size).map(e => e.json);\n  batches.push({ json: { batch: chunk } });\n}\nreturn batches;"
-      }
-    },
-    {
-      "id": "6",
-      "name": "POST /ingest",
+        "options": {}
+      },
+      "id": "46879c80-3578-4374-9a41-d3615a2f4e14",
+      "name": "Descargar CSV",
       "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        672,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const load_date = new Date().toISOString().slice(0,10);\nconst source_file_name = 'ads_spend.csv';\n\nconst enriched = items.map(item => {\n  return {\n    ...item.json,\n    load_date,\n    source_file_name\n  };\n});\n\nreturn [\n  {\n    json: {\n      batch: enriched\n    }\n  }\n];\n"
+      },
+      "id": "e6fed201-4082-415d-adbb-7e21bb4287e1",
+      "name": "Agregar Metadata",
+      "type": "n8n-nodes-base.function",
       "typeVersion": 1,
       "position": [
-        1200,
-        0
-      ],
+        1344,
+        160
+      ]
+    },
+    {
       "parameters": {
-        "url": "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.app/ingest",
-        "method": "POST",
-        "responseFormat": "json",
+        "requestMethod": "POST",
+        "url": "https://n8n-sqliteapi.zfrap0.easypanel.host/ingest",
         "jsonParameters": true,
-        "options": {},
-        "bodyParametersJson": "={{$json[\"batch\"]}}",
-        "headers": [
+        "options": {
+          "timeout": 60000
+        },
+        "bodyParametersJson": "={{ $json[\"batch\"] }}"
+      },
+      "id": "ae70ddb7-5531-4f21-9e29-2a148835088f",
+      "name": "Enviar a API (POST /ingest)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        160
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        448,
+        256
+      ],
+      "id": "ebec4fbf-b4f8-4d52-bdee-6642ee6cf1b4",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const size = 5000;\nconst input = $input.first().json.batch;\nconst batches = [];\n\nfor (let i = 0; i < input.length; i += size) {\n  const chunk = input.slice(i, i + size);\n  batches.push({ json: { batch: chunk } });\n}\n\nreturn batches;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        160
+      ],
+      "id": "0519165b-584c-424c-86ef-15557be97302",
+      "name": "500 batch"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        896,
+        160
+      ],
+      "id": "be0f9512-68e3-4c4c-a37e-acf1fe91df8d",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Extract from File').all().map(item => {\n  const r = item.json;\n\n  return {\n    json: {\n      ...r,\n      spend: Number(r.spend),\n      clicks: Number(r.clicks),\n      impressions: Number(r.impressions),\n      conversions: Number(r.conversions)\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        160
+      ],
+      "id": "4723a388-5f18-4fb1-a6a8-5bff6f05cb96",
+      "name": "Strings to Numbers"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "CRON_8AM_GT": {
+      "main": [
+        [
           {
-            "name": "Content-Type",
-            "value": "application/json"
+            "node": "Descargar CSV",
+            "type": "main",
+            "index": 0
           }
         ]
-      }
+      ]
     },
-    {
-      "id": "7",
-      "name": "Webhook - /metrics",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [
-        480,
-        300
-      ],
-      "parameters": {
-        "path": "metrics",
-        "httpMethod": "GET",
-        "responseMode": "lastNode"
-      }
+    "Descargar CSV": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    {
-      "id": "8",
-      "name": "Proxy a API /metrics",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 1,
-      "position": [
-        720,
-        300
-      ],
-      "parameters": {
-        "url": "https://YOUR-NGROK-SUBDOMAIN.ngrok-free.app/metrics",
-        "responseFormat": "json",
-        "jsonParameters": false
-      }
+    "Agregar Metadata": {
+      "main": [
+        [
+          {
+            "node": "500 batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    {
-      "id": "9",
-      "name": "Responder JSON",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [
-        960,
-        300
-      ],
-      "parameters": {
-        "responseData": "={{$json}}"
-      }
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Descargar CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "500 batch": {
+      "main": [
+        [
+          {
+            "node": "Enviar a API (POST /ingest)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Strings to Numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strings to Numbers": {
+      "main": [
+        [
+          {
+            "node": "Agregar Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
-  ],
-  "connections": {
-    "1": [
-      {
-        "node": "2",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "2": [
-      {
-        "node": "3",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "3": [
-      {
-        "node": "4",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "4": [
-      {
-        "node": "5",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "5": [
-      {
-        "node": "6",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "7": [
-      {
-        "node": "8",
-        "type": "main",
-        "index": 0
-      }
-    ],
-    "8": [
-      {
-        "node": "9",
-        "type": "main",
-        "index": 0
-      }
-    ]
   },
+  "active": false,
   "settings": {
-    "timezone": "America/Guatemala",
-    "saveExecutionProgress": true,
-    "errorExecutionBehavior": "continueRegular",
     "executionOrder": "v1"
   },
-  "tags": [
-    {
-      "name": "sqlite"
-    },
-    {
-      "name": "bulk-ingest"
-    },
-    {
-      "name": "metrics"
-    }
-  ],
-  "version": 1,
-  "active": true,
-  "id": "1756405544.172081"
+  "versionId": "83a49c45-a1ed-461b-875a-ff77818843d1",
+  "meta": {
+    "instanceId": "7ded5bace7c810c76e74e34f720d897ff86fba76df250deb83fc26dff047d45b"
+  },
+  "id": "F8QHpRIrvTtmY4Gr",
+  "tags": []
 }
