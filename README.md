@@ -165,30 +165,29 @@ Video should explain:
 - Any implementation decisions or trade-offs
 
 ---
-
 ## 🖼️ Visual Charts
 
 Here are key visual outputs generated during the challenge:
 
 ### 📈 CAC & ROAS Over Time
 
-![Chart 1](./ShadowLightChart1.png)
+![Chart 1](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart1.png)
 
 ### 📊 Spend vs Conversions
 
-![Chart 2](./ShadowLightChart2.png)
+![Chart 2](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart2.png)
 
 ### 📉 CAC Comparison (Last 30 vs Previous 30 Days)
 
-![Chart 3](./ShadowLightChart3.png)
+![Chart 3](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart3.png)
 
 ### 📈 ROAS Comparison (Last 30 vs Previous 30 Days)
 
-![Chart 4](./ShadowLightChart4.png)
+![Chart 4](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart4.png)
 
 ### 📊 Summary Dashboard Snapshot
 
-![Chart 5](./ShadowLightChart5.png)
+![Chart 5](https://github.com/EliabLemus/ai-data-engineer-test/blob/main/ShadowLightChart5.png)
 
 ---
 
